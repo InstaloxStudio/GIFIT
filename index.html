@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>GIFIT</title>
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self';" />
+  <link rel="stylesheet" href="styles.css">
+
+
+</head>
+
+<body>
+  <div id="header">
+    <button id="select-btn">Load Images</button>
+    <div id="speed-container">
+      <label for="speed-slider">Speed:</label>
+      <input type="range" id="speed-slider" min="1" max="10" value="5" step="1">
+    </div>
+  </div>
+  <div id="frame-container">
+    <h3></h3>
+    <div id="image-list"></div> <!-- Container for the image grid -->
+  </div>
+
+  <div id="preview-container">
+    <label id="preview-label"></label>
+    <div id="preview-image-container">
+      <div id="preview-placeholder"></div>
+      <img id="preview-image" alt="">
+    </div>
+  </div>
+
+  <div id="buttons-container">
+    <div id="preview-create-container">
+      <button id="preview-btn">Preview</button>
+      <button id="create-btn">Create GIF</button>
+    </div>
+  </div>
+
+  <progress id="progress-bar" value="0" max="100"></progress>
+
+  <script src="renderer.js"></script>
+  <script src="main.js"></script>
+</body>
+
+</html>
