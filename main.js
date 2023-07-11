@@ -5,19 +5,21 @@ const GIFEncoder = require('gifencoder');
 const sharp = require('sharp');
 const pipeline = require('stream');
 const Jimp = require('jimp');
+const os = require('os');
+const { unlink } = require('fs').promises; // At the top of your file
 
 let mainWindow;
 const createWindow = () => {
 
   // Create the browser window.
-    mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 400,
     height: 800,
     webPreferences: {
       nodeIntegration: true, // Set to false since we bundled renderer code with webpack
       contextIsolation: true,
       enableRemoteModule: false,
-      preload: __dirname + '/preload.js',
+      preload: path.join(__dirname, 'preload.js'),
     },
   });
 
@@ -41,13 +43,43 @@ ipcMain.handle('save-file', async (event, filePaths, frameDelay) => {
       console.log('no file path');
       return null;
     }
-    console.log("save file filepath is: "+result.filePath);
 
     const filePath = result.filePath;
 
     // create gif
-    const gifCreated = await createGIF(filePaths,filePath, frameDelay, mainWindow);
+    const gifCreated = await createGIF(filePaths, filePath, frameDelay, mainWindow);
     mainWindow.webContents.send('mainprocess-response', 'done');
+
+    return result;
+  } catch (err) {
+    console.log(err);
+    return null;
+  }
+});
+
+ipcMain.handle('save-webp', async (event, filePaths, frameDelay) => {
+  console.log('save-webp');
+  try {
+    // show save file dialog
+    const result = await dialog.showSaveDialog({
+      filters: [{ name: 'WebP', extensions: ['webp'] }],
+    });
+
+    if (result.canceled) {
+      console.log('user canceled');
+      return null;
+    }
+    if (result.filePath === '') {
+      console.log('no file path');
+      return null;
+    }
+
+    const filePath = result.filePath;
+
+    // create gif
+    const gifCreated = await createWebP(filePaths, filePath, frameDelay, mainWindow);
+    mainWindow.webContents.send('mainprocess-response', 'done');
+
     return result;
   } catch (err) {
     console.log(err);
@@ -83,10 +115,50 @@ async function createGIF(filePaths, filePath, frameDelay, mainWindow) {
   return true;
 }
 
+async function createWebP(filePaths, filePath, frameDelay, mainWindow) {
+  const firstImagePath = filePaths[0];
+  const firstImage = await Jimp.read(firstImagePath);
+  const width = firstImage.bitmap.width;
+  const height = firstImage.bitmap.height;
+
+  const gif = new GIFEncoder(width, height);
+  gif.setRepeat(0);  // 0 for repeat, -1 for no-repeat
+  gif.setDelay(frameDelay); // frame delay in ms
+  gif.start();
+
+  const stream = gif.createReadStream();
+  stream.pipe(fs.createWriteStream(filePath));
+
+  for (let i = 0; i < filePaths.length; i++) {
+    const imagePath = filePaths[i];
+    const image = await Jimp.read(imagePath);
+    image.resize(width, height);
+    const imageData = image.bitmap.data; // Here we get raw pixel data
+    gif.addFrame(imageData);
+    let progress = filePaths.length > 1 ? i / (filePaths.length - 1) : 1;
+    mainWindow.webContents.send('progress', progress);
+  }
+
+  gif.finish();
+
+  // Convert the GIF to a WebP file.
+  const webpFilePath = filePath.replace('.gif', '.webp');
+  await sharp(filePath, { animated: true }).toFile(webpFilePath);
+
+  //delete the gif file here
+  try {
+    await unlink(filePath);
+  }
+  catch (err) {
+    console.log(err);
+  }
+
+  return true;
+}
+
 ipcMain.on('request-mainprocess-action', (event, arg) => {
   console.log("request-mainprocess-action");
   console.log(arg);
-  //creategif(arg).then(() =>{
   mainWindow.webContents.send('mainprocess-response', 'done');
 });
 
@@ -98,11 +170,12 @@ ipcMain.handle('open-file', async (event) => {
     console.log('user canceled');
     return;
   }
+
   if (result.filePaths.length === 0) {
     console.log('no files selected');
     return;
   }
-  console.log("open file paths: "+result.filePaths);
+  console.log("open file paths: " + result.filePaths);
   return result;
 });
 
